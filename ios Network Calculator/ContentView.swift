@@ -106,29 +106,27 @@ let hostsOptions = [
     "2147483646"
 ]
 
-var errorState = "IP Address"
-let radioOptions = ["Dec", "Hex", "Bin"]
-
 struct ContentView: View {
-    @State private var maskBitsSelection = 0
-    @State private var subnetMaskSelection = ""
-    @State private var hostsSelection = 0
-    @State private var ipInput = ""
-    @State private var selectedRadioOption = radioOptions[0]
+    @State private var maskBitsSelection = "30"
+    @State private var subnetMaskSelection = "255.255.255.252"
+    @State private var hostsSelection = "2"
+    @State private var ipInput = "192.168.0.2"
+    @State private var selectedRadioOption = "Dec"
     
     var body: some View {
         VStack {
-            Text("Subnet Calculator").padding(100)
+            Text("NETWORK CALCULATOR")
+                .padding(.bottom, 50)
+            .font(.title.bold())
             
             Grid(alignment: .leading) {
                 GridRow {
                     Text("IP:")
                     TextField(
-                        "IP Address",
+                        "Type here...",
                         text: $ipInput
                     )
-                    .padding()
-                    .frame(width: 200)
+                    .frame(maxWidth: 200)
                 }
                 
                 GridRow {
@@ -137,43 +135,141 @@ struct ContentView: View {
                         ForEach(maskBitsOptions, id: \.self) {
                             Text($0)
                         }
+                    }.onChange(of: maskBitsSelection) {
+                        let (_, subnetMask, hosts) = maskBitsFunction(maskBits: Int(maskBitsSelection) ?? 0)
+                        subnetMaskSelection = subnetMask
+                        hostsSelection = String(hosts)
                     }
                 }
                 
                 
                 GridRow {
                     Text("Subnet Mask:")
-                    Picker("Select mask bits", selection: $subnetMaskSelection) {
+                    Picker("Select subnet mask", selection: $subnetMaskSelection) {
                         ForEach(subnetMaskOptions, id: \.self) {
                             Text($0)
                         }
+                    }.onChange(of: subnetMaskSelection) {
+                        let (maskBits, _, hosts) = subnetMaskFunction(subnetMask: subnetMaskSelection)
+                        maskBitsSelection = String(maskBits)
+                        hostsSelection = String(hosts)
                     }
                 }
                 
                 GridRow {
                     Text("Hosts:")
-                    Picker("Select mask bits", selection: $hostsSelection) {
+                    Picker("Select hosts", selection: $hostsSelection) {
                         ForEach(hostsOptions, id: \.self) {
                             Text($0)
                         }
+                    }.onChange(of: hostsSelection) {
+                        let (maskBits, subnetMask, _) = hostsFunction(hosts: Int(hostsSelection) ?? 0)
+                        maskBitsSelection = String(maskBits)
+                        subnetMaskSelection = subnetMask
                     }
                 }
             }
             
             
             Picker(selection: $selectedRadioOption, label: Text("Notation Selection")) {
-                ForEach(radioOptions, id: \.self) {
-                    Text($0)
-                }
+                Text("Dec").tag("Dec")
+                Text("Hex").tag("Hex")
+                Text("Bin").tag("Bin")
             }
             .pickerStyle(SegmentedPickerStyle())
-            .fixedSize()
+            .padding()
             
-            TabView(selection: $selectedRadioOption) {
-                Text("Decimal Results").tag("Dec")
-                Text("Hexadecimal Results").tag("Hex")
-                Text("Binary Results").tag("Bin")
-            }.tabViewStyle(PageTabViewStyle())
+            if isValidIPAddress(ipInput) {
+                TabView(selection: $selectedRadioOption) {
+                    let (upperRange, lowerRange, broadcast) = ipRange(maskBits: Int(maskBitsSelection) ?? 0, ip: ipInput)
+                    Grid(alignment: .leading) {
+                        GridRow {
+                            Text("Network:")
+                            Text(ipToNetwork(ipInput) + "/" + maskBitsSelection)
+                        }
+                        GridRow {
+                            Text("Netmask:")
+                            Text(subnetMaskSelection)
+                        }
+                        GridRow {
+                            Text("IP Range:")
+                            Text(lowerRange)
+                        }
+                        GridRow {
+                            Text("")
+                            Text(upperRange)
+                        }
+                        GridRow {
+                            Text("Hosts:")
+                            Text(hostsSelection)
+                        }
+                        GridRow {
+                            Text("Broadcast:")
+                            Text(broadcast)
+                        }
+                    }.tag("Dec").padding()
+                    
+                    Grid(alignment: .leading) {
+                        GridRow {
+                            Text("Network:")
+                            Text(ipToHex(ipToNetwork(ipInput)) + "/" + String(format: "%02X", Int(maskBitsSelection) ?? 0))
+                        }
+                        GridRow {
+                            Text("Netmask:")
+                            Text(ipToHex(subnetMaskSelection))
+                        }
+                        GridRow {
+                            Text("IP Range:")
+                            Text(ipToHex(lowerRange))
+                        }
+                        GridRow {
+                            Text("")
+                            Text(ipToHex(upperRange))
+                        }
+                        GridRow {
+                            Text("Hosts:")
+                            Text(String(format: "%02X", Int(hostsSelection) ?? 0))
+                        }
+                        GridRow {
+                            Text("Broadcast:")
+                            Text(ipToHex(broadcast))
+                        }
+                    }.tag("Hex").padding()
+                    
+                    Grid(alignment: .leading) {
+                        GridRow {
+                            Text("Network:")
+                            Text(ipToBinary(ipToNetwork(ipInput))).minimumScaleFactor(0.01).scaledToFit()
+                        }
+                        GridRow {
+                            Text("Netmask:")
+                            Text(ipToBinary(ipToNetwork(ipInput))).minimumScaleFactor(0.01).scaledToFit()
+                        }
+                        GridRow {
+                            Text("IP Range:")
+                            Text(ipToBinary(lowerRange)).minimumScaleFactor(0.01).scaledToFit()
+                        }
+                        GridRow {
+                            Text("")
+                            Text(ipToBinary(upperRange)).minimumScaleFactor(0.01).scaledToFit()
+                        }
+                        GridRow {
+                            Text("Broadcast:")
+                            Text(ipToBinary(broadcast)).minimumScaleFactor(0.01).scaledToFit()
+                        }
+                    }.tag("Bin").padding()
+                }
+                .tabViewStyle(PageTabViewStyle())
+                .frame(maxHeight: 200)
+            } else {
+                TabView(selection: $selectedRadioOption) {
+                    Text("Invalid IP Address").tag("Dec")
+                    Text("Invalid IP Address").tag("Hex")
+                    Text("Invalid IP Address").tag("Bin")
+                }
+                .tabViewStyle(PageTabViewStyle())
+                .frame(maxHeight: 200)
+            }
         }
     }
 }
@@ -262,7 +358,7 @@ func isValidIPAddress(_ ip: String) -> Bool {
     return true
 }
 
-func ipRange(maskBits: Int, ip: String) -> [String] {
+func ipRange(maskBits: Int, ip: String) -> (String, String, String) {
     var lower = ""
     var upper = ""
 
@@ -281,7 +377,7 @@ func ipRange(maskBits: Int, ip: String) -> [String] {
     let upperIP = binaryToIP(networkPart + upper)
     let broadcastIP = binaryToIP(broadcastBinary)
 
-    return [lowerIP, upperIP, broadcastIP]
+    return (String(lowerIP), String(upperIP), String(broadcastIP))
 }
 
 func maskBitsFunction(maskBits: Int) -> (Int, String, Int) {
@@ -359,9 +455,6 @@ func hostsFunction(hosts: Int) -> (Int, String, Int) {
 
     return (maskBits, subnetMask, hosts)
 }
-
-
-
 
 #Preview {
     ContentView()
